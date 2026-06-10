@@ -157,6 +157,36 @@
     border-radius:50%;background:var(--signal);color:#fff;font-size:28px;border:none;
     box-shadow:0 4px 16px rgba(21,33,46,.3);align-items:center;justify-content:center;line-height:1}
 
+  /* ============ Micro-interactions & feedback ============ */
+  .kpi,.card,.btn,.fab,.navbtn,tbody tr,.alert-row{transition:transform .18s ease,box-shadow .18s ease,background .18s ease}
+  .kpi.click{cursor:pointer}
+  .kpi.click:hover{transform:translateY(-3px);box-shadow:0 7px 20px rgba(21,33,46,.14)}
+  .kpi.click:active{transform:translateY(-1px) scale(.99)}
+  .btn:active,.fab:active{transform:scale(.95)}
+  .card:hover{box-shadow:0 5px 16px rgba(21,33,46,.13)}
+  .alert-row{cursor:pointer;border-radius:6px;padding-inline:8px}
+  .alert-row:hover{background:#f4f7f4}
+  .modal-bg.open .modal{animation:pop .22s ease}
+  @keyframes pop{from{opacity:0;transform:translateY(16px) scale(.98)}to{opacity:1;transform:none}}
+  .toast{animation:rise .25s ease}
+  @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+  .shake{animation:shake .4s}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}50%{transform:translateX(6px)}75%{transform:translateX(-4px)}}
+  .loader{display:flex;align-items:center;gap:9px;color:var(--ink-2);font-size:14px;padding:18px}
+  .spin{width:17px;height:17px;border:2.5px solid var(--line);border-top-color:var(--signal);border-radius:50%;animation:rot .8s linear infinite;flex-shrink:0}
+  @keyframes rot{to{transform:rotate(360deg)}}
+  th.sortable{cursor:pointer;user-select:none}
+  th.sortable:hover{color:var(--ink);background:#e7ebe7}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--ink-2);margin:-6px 0 16px}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-inline-end:5px}
+  .chart{display:flex;align-items:flex-end;gap:8px;height:120px;padding-top:20px}
+  .chart .bar{flex:1;background:linear-gradient(180deg,#4b8fb0,var(--sea));border-radius:5px 5px 0 0;position:relative;min-width:16px;transform-origin:bottom;animation:grow .5s ease}
+  .chart .bar small{position:absolute;top:-18px;right:0;left:0;text-align:center;font-size:11px;color:var(--ink-2);font-weight:600}
+  .chart-x{display:flex;gap:8px;font-size:11px;color:var(--ink-2);margin-top:6px}
+  .chart-x span{flex:1;text-align:center;min-width:16px}
+  @keyframes grow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
   @media (max-width:840px){
     .shell{grid-template-columns:1fr}
     nav.side{flex-direction:row;flex-wrap:wrap;align-items:center;padding:8px}
@@ -387,7 +417,11 @@ document.addEventListener("keydown",e=>{ if(e.key==="Enter"&&$("#loginScreen").s
 async function login(){
   $("#loginErr").textContent="";
   const {error}=await sb.auth.signInWithPassword({email:$("#email").value.trim(),password:$("#pass").value});
-  if(error) $("#loginErr").textContent="הכניסה נכשלה — בדקו אימייל וסיסמה.";
+  if(error){
+    $("#loginErr").textContent="הכניסה נכשלה — בדקו אימייל וסיסמה.";
+    const card=$("#loginScreen .gate-card");           // shake = clear error feedback
+    card.classList.remove("shake"); void card.offsetWidth; card.classList.add("shake");
+  }
 }
 document.addEventListener("click",e=>{ if(e.target.id==="logoutBtn") sb.auth.signOut(); });
 
@@ -403,22 +437,37 @@ async function loadTable(name){
 
 /* ===================== Navigation ===================== */
 $$(".navbtn").forEach(b=>b.addEventListener("click",()=>go(b.dataset.page)));
+let currentPage="dashboard", entityPreset=null;     // preset = drill-through filters from dashboard
 function go(page){
+  currentPage=page;
   $$(".navbtn").forEach(b=>b.classList.toggle("active",b.dataset.page===page));
   if(page==="dashboard") renderDashboard();
   else if(page==="import") renderImport();
   else renderEntity(page);
 }
+function openFiltered(page,filters){ entityPreset=filters||null; go(page); }
+function refreshAfterChange(table){     // re-render whichever screen is open
+  if(currentPage==="dashboard") renderDashboard();
+  else if($("#entBody")) drawRows();
+}
 
 /* ===================== Dashboard ===================== */
 async function renderDashboard(){
   $("#main").innerHTML=`<div class="page-head"><div><h2>דשבורד תפעולי</h2>
-    <div class="sub">תמונת מצב חיה — משלוחים, תשלומים וקטלוג</div></div></div>
-    <div class="kpis" id="kpis"></div>
-    <div class="panel"><h3>⛴ מתקרבים לארץ — 21 הימים הקרובים</h3><div id="arriving"></div></div>
-    <div class="panel"><h3>₪ תשלומים פתוחים</h3><div id="duePays"></div></div>`;
+    <div class="sub">תמונת מצב חיה — לחיצה על כרטיס או שורה פותחת את הפירוט</div></div></div>
+    <div class="legend">
+      <span><span class="dot" style="background:var(--sea)"></span>מידע</span>
+      <span><span class="dot" style="background:var(--signal)"></span>דורש מעקב</span>
+      <span><span class="dot" style="background:var(--danger)"></span>דורש פעולה</span>
+      <span><span class="dot" style="background:var(--ok)"></span>תקין</span>
+    </div>
+    <div class="kpis" id="kpis"><div class="loader"><span class="spin"></span>טוען נתונים…</div></div>
+    <div class="panel"><h3>⛴ מתקרבים לארץ — 21 הימים הקרובים</h3><div id="arriving"><div class="loader"><span class="spin"></span>טוען…</div></div></div>
+    <div class="panel"><h3>📊 הגעות משלוחים לפי חודש (ETA)</h3><div id="trend"></div></div>
+    <div class="panel"><h3>₪ תשלומים פתוחים</h3><div id="duePays"><div class="loader"><span class="spin"></span>טוען…</div></div></div>`;
   const [ships,pays,prods,sups]=await Promise.all([
     loadTable("shipments"),loadTable("payments"),loadTable("products"),loadTable("suppliers")]);
+  if(currentPage!=="dashboard") return;   // user navigated away while loading
 
   const open=ships.filter(r=>r.order_status==="פתוח");
   const arriving=ships.filter(r=>r.order_status==="פתוח"&&r.eta&&daysTo(r.eta)>=0&&daysTo(r.eta)<=21)
@@ -427,28 +476,55 @@ async function renderDashboard(){
   const dueSum=due.reduce((s,r)=>s+(+r.advance_amount||0),0);
   const transitVal=open.reduce((s,r)=>s+(+r.goods_cost||0),0);
 
+  /* clickable KPI cards — each one is a shortcut to the filtered list */
   $("#kpis").innerHTML=`
-    <div class="kpi"><div class="v num">${open.length}</div><div class="l">משלוחים פתוחים</div></div>
-    <div class="kpi amber"><div class="v num">${arriving.length}</div><div class="l">מגיעים תוך 21 יום</div></div>
-    <div class="kpi red"><div class="v num">$${fmtMoney(dueSum)}</div><div class="l">לתשלום מיידי (${due.length} תשלומים)</div></div>
-    <div class="kpi green"><div class="v num">$${fmtMoney(transitVal)}</div><div class="l">שווי סחורה בהזמנות פתוחות</div></div>
-    <div class="kpi"><div class="v num">${prods.length}</div><div class="l">מקטים בקטלוג · ${sups.length} ספקים</div></div>`;
+    <div class="kpi click" data-go="ships-open"><div class="v num">${open.length}</div><div class="l">משלוחים פתוחים</div></div>
+    <div class="kpi click amber" data-go="ships-arriving"><div class="v num">${arriving.length}</div><div class="l">מגיעים תוך 21 יום</div></div>
+    <div class="kpi click ${due.length?"red":"green"}" data-go="pays-due"><div class="v num">$${fmtMoney(dueSum)}</div><div class="l">לתשלום מיידי (${due.length} תשלומים)</div></div>
+    <div class="kpi click" data-go="ships-open"><div class="v num">$${fmtMoney(transitVal)}</div><div class="l">שווי סחורה בהזמנות פתוחות</div></div>
+    <div class="kpi click" data-go="products"><div class="v num">${prods.length}</div><div class="l">מקטים בקטלוג · ${sups.length} ספקים</div></div>`;
+  const goMap={
+    "ships-open":  ()=>openFiltered("shipments",{order_status:"פתוח"}),
+    "ships-arriving":()=>openFiltered("shipments",{order_status:"פתוח"}),
+    "pays-due":    ()=>openFiltered("payments",{status:"יש לבצע תשלום"}),
+    "products":    ()=>openFiltered("products",null),
+  };
+  $$("#kpis .kpi").forEach(k=>k.addEventListener("click",goMap[k.dataset.go]));
 
+  /* alert rows — click opens the record for editing */
   $("#arriving").innerHTML = arriving.length ? arriving.map(r=>`
-    <div class="alert-row"><span><b>${esc(r.product)}</b> — ${esc(r.supplier_name||"")}</span>
+    <div class="alert-row" data-id="${r.id}"><span><b>${esc(r.product)}</b> — ${esc(r.supplier_name||"")}</span>
     <span class="muted">ETA ${fmtDate(r.eta)} (בעוד ${daysTo(r.eta)} ימים) · ${esc(r.status||"")} · ${esc(r.destination||"")}</span></div>`).join("")
     : `<div class="empty">אין משלוחים שמגיעים בשלושת השבועות הקרובים.</div>`;
+  $$("#arriving .alert-row").forEach(el=>el.addEventListener("click",()=>{
+    const row=(cache.shipments||[]).find(r=>String(r.id)===el.dataset.id);
+    if(row) openModal("shipments",row); }));
 
   $("#duePays").innerHTML = due.length ? due.map(r=>`
-    <div class="alert-row"><span><b>${esc(r.details)}</b> — ${esc(r.manufacturer||"")}</span>
+    <div class="alert-row" data-id="${r.id}"><span><b>${esc(r.details)}</b> — ${esc(r.manufacturer||"")}</span>
     <span class="muted num">$${fmtMoney(r.advance_amount)} · מקדמה ${fmtDate(r.advance_date)} · הזמנה ${esc(r.order_no||"")}</span></div>`).join("")
     : `<div class="empty">אין תשלומים פתוחים. 🎉</div>`;
+  $$("#duePays .alert-row").forEach(el=>el.addEventListener("click",()=>{
+    const row=(cache.payments||[]).find(r=>String(r.id)===el.dataset.id);
+    if(row) openModal("payments",row); }));
+
+  /* monthly ETA trend — pure CSS bars, no libraries */
+  const byMonth={};
+  ships.forEach(r=>{ if(r.eta){ const k=String(r.eta).slice(0,7); byMonth[k]=(byMonth[k]||0)+1; }});
+  const months=Object.keys(byMonth).sort().slice(-9);
+  if(months.length){
+    const max=Math.max(...months.map(m=>byMonth[m]));
+    $("#trend").innerHTML=`<div class="chart">${months.map(m=>
+      `<div class="bar" style="height:${Math.max(8,Math.round(byMonth[m]/max*100))}%"><small>${byMonth[m]}</small></div>`).join("")}</div>
+      <div class="chart-x">${months.map(m=>`<span class="num">${m.slice(5,7)}.${m.slice(2,4)}</span>`).join("")}</div>`;
+  } else $("#trend").innerHTML=`<div class="empty">אין עדיין תאריכי ETA בנתונים.</div>`;
 }
 
 /* ===================== Generic entity page ===================== */
-let currentEntity=null, currentFilters={}, currentSearch="";
+let currentEntity=null, currentFilters={}, currentSearch="", currentSort=null;
 async function renderEntity(key){
-  currentEntity=key; currentFilters={}; currentSearch="";
+  currentEntity=key; currentFilters={}; currentSearch=""; currentSort=null;
+  if(entityPreset){ currentFilters={...entityPreset}; }
   const sc=SCHEMAS[key];
   $("#main").innerHTML=`<div class="page-head">
     <div><h2>${sc.icon} ${sc.title}</h2><div class="sub" id="entSub"></div></div>
@@ -463,7 +539,13 @@ async function renderEntity(key){
     <button class="fab" id="entFab" title="הוספה">+</button>
     <div class="count-note" id="entCount"></div>`;
   $("#entSearch").addEventListener("input",e=>{currentSearch=e.target.value;drawRows();});
-  $$(".entFilter").forEach(s=>s.addEventListener("change",e=>{currentFilters[e.target.dataset.fk]=e.target.value;drawRows();}));
+  $$(".entFilter").forEach(s=>{
+    if(entityPreset && entityPreset[s.dataset.fk]) s.value=entityPreset[s.dataset.fk];  // reflect drill-through filter
+    s.addEventListener("change",e=>{currentFilters[e.target.dataset.fk]=e.target.value;drawRows();});
+  });
+  entityPreset=null;
+  $("#entBody").innerHTML=`<tr><td colspan="20"><div class="loader"><span class="spin"></span>טוען נתונים…</div></td></tr>`;
+  $("#entCards").innerHTML=`<div class="loader"><span class="spin"></span>טוען נתונים…</div>`;
   $("#entAdd").addEventListener("click",()=>openModal(key,null));
   $("#entFab").addEventListener("click",()=>openModal(key,null));
   await loadTable(sc.table);
@@ -485,7 +567,27 @@ function drawRows(){
     if(!q) return true;
     return Object.values(r).some(x=>String(x??"").toLowerCase().includes(q));
   });
-  $("#entHead").innerHTML="<tr>"+sc.cols.map(c=>`<th>${f[c].l}</th>`).join("")+"</tr>";
+  /* sorting: click a column header to sort, click again to reverse */
+  if(currentSort){
+    const fd=f[currentSort.col];
+    view.sort((a,b)=>{
+      let x=a[currentSort.col], y=b[currentSort.col];
+      if(x==null||x==="") return 1; if(y==null||y==="") return -1;
+      let r;
+      if(fd.t==="number") r=(+x)-(+y);
+      else if(fd.t==="date") r=new Date(x)-new Date(y);
+      else r=String(x).localeCompare(String(y),"he");
+      return currentSort.asc?r:-r;
+    });
+  }
+  $("#entHead").innerHTML="<tr>"+sc.cols.map(c=>{
+    const arrow=currentSort&&currentSort.col===c?(currentSort.asc?" ▲":" ▼"):"";
+    return `<th class="sortable" data-c="${c}" title="לחיצה למיון">${f[c].l}${arrow}</th>`;}).join("")+"</tr>";
+  $$("#entHead th").forEach(th=>th.addEventListener("click",()=>{
+    const c=th.dataset.c;
+    currentSort = currentSort&&currentSort.col===c ? {col:c,asc:!currentSort.asc} : {col:c,asc:true};
+    drawRows();
+  }));
   $("#entBody").innerHTML=view.map(r=>"<tr data-id='"+r.id+"'>"+
     sc.cols.map(c=>`<td>${fmtVal(f[c],r[c])}</td>`).join("")+"</tr>").join("");
   /* mobile cards: same data, stacked vertically — no sideways scrolling */
@@ -556,7 +658,7 @@ $("#modalSave").addEventListener("click",async()=>{
   modalDirty=false;
   $("#modalBg").classList.remove("open");
   toast("הרשומה נשמרה ✓");
-  await loadTable(sc.table); drawRows();
+  await loadTable(sc.table); refreshAfterChange();
 });
 $("#modalDelete").addEventListener("click",async()=>{
   if(!confirm("למחוק את הרשומה לצמיתות?")) return;
@@ -564,7 +666,7 @@ $("#modalDelete").addEventListener("click",async()=>{
   const {error}=await sb.from(sc.table).delete().eq("id",modalRow.id);
   if(error){ toast("מחיקה נכשלה: "+error.message); return; }
   $("#modalBg").classList.remove("open"); toast("הרשומה נמחקה");
-  await loadTable(sc.table); drawRows();
+  await loadTable(sc.table); refreshAfterChange();
 });
 
 /* ===================== Excel import ===================== */
