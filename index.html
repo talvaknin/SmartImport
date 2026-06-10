@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UMI — מערכת ניהול יבוא</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* ============ Design tokens — "port operations console" ============ */
+  :root{
+    --ink:#15212e;          /* deep harbor ink */
+    --ink-2:#3d4c5c;
+    --paper:#f3f4f2;        /* warm light deck */
+    --card:#ffffff;
+    --line:#dfe3e0;
+    --navy:#102437;         /* sidebar */
+    --navy-2:#1b3a55;
+    --signal:#e8842c;       /* signal amber — primary action */
+    --signal-d:#c96d1c;
+    --ok:#2e7d54;
+    --warn:#b3801a;
+    --danger:#b54034;
+    --sea:#2a6f8f;
+    --radius:10px;
+    --shadow:0 1px 2px rgba(21,33,46,.06),0 4px 14px rgba(21,33,46,.07);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:'Heebo',system-ui,sans-serif;color:var(--ink);
+    background:var(--paper);font-size:15px;
+  }
+  .num{font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed}
+  button{font-family:inherit;cursor:pointer}
+  input,select,textarea{font-family:inherit;font-size:14px}
+
+  /* ============ Login / setup screens ============ */
+  .gate{min-height:100vh;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(160deg,var(--navy) 0%,var(--navy-2) 70%,#27577c 100%)}
+  .gate-card{background:var(--card);border-radius:14px;box-shadow:var(--shadow);
+    width:min(420px,92vw);padding:36px}
+  .brand{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+  .brand-mark{width:42px;height:42px;border-radius:9px;background:var(--signal);
+    display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:19px}
+  .brand h1{font-size:20px;font-weight:700}
+  .brand small{display:block;font-weight:400;color:var(--ink-2);font-size:12px}
+  .gate-card label{display:block;font-size:13px;font-weight:600;margin:14px 0 5px;color:var(--ink-2)}
+  .gate-card input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px}
+  .gate-card input:focus{outline:2px solid var(--signal);border-color:transparent}
+  .btn-primary{background:var(--signal);color:#fff;border:none;border-radius:8px;
+    padding:11px 18px;font-weight:600;font-size:15px;width:100%;margin-top:20px}
+  .btn-primary:hover{background:var(--signal-d)}
+  .gate-err{color:var(--danger);font-size:13px;margin-top:12px;min-height:18px}
+  .setup-note{background:#fdf3e7;border:1px solid #f0d4ae;border-radius:8px;
+    padding:14px;font-size:13px;line-height:1.7;margin-top:14px}
+  .setup-note code{background:#fff;padding:1px 5px;border-radius:4px;direction:ltr;display:inline-block}
+
+  /* ============ App shell ============ */
+  #app{display:none;min-height:100vh}
+  .shell{display:grid;grid-template-columns:222px 1fr;min-height:100vh}
+  nav.side{background:var(--navy);color:#cfdbe6;padding:18px 0;display:flex;flex-direction:column}
+  .side .brand{padding:0 18px 16px;border-bottom:1px solid rgba(255,255,255,.09);margin-bottom:10px}
+  .side .brand h1{color:#fff;font-size:16px}
+  .side .brand small{color:#8fa6b8}
+  .navbtn{display:flex;align-items:center;gap:10px;width:100%;text-align:right;
+    background:none;border:none;color:#cfdbe6;padding:11px 18px;font-size:14.5px;font-weight:500;
+    border-right:3px solid transparent}
+  .navbtn:hover{background:rgba(255,255,255,.05)}
+  .navbtn.active{background:rgba(232,132,44,.13);color:#fff;border-right-color:var(--signal)}
+  .navbtn .ic{width:20px;text-align:center}
+  .side .spacer{flex:1}
+  .side .who{padding:12px 18px;font-size:12px;color:#8fa6b8;border-top:1px solid rgba(255,255,255,.09)}
+  .side .who button{background:none;border:1px solid #41586d;color:#cfdbe6;border-radius:6px;
+    padding:5px 10px;font-size:12px;margin-top:8px}
+  main{padding:26px 30px;max-width:1500px}
+  .page-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px}
+  .page-head h2{font-size:21px;font-weight:700}
+  .page-head .sub{font-size:13px;color:var(--ink-2)}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .toolbar input[type=search]{padding:9px 12px;border:1px solid var(--line);border-radius:8px;width:230px;background:#fff}
+  .toolbar select{padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:#fff}
+  .btn{border:none;border-radius:8px;padding:9px 16px;font-weight:600;font-size:14px}
+  .btn.add{background:var(--signal);color:#fff}
+  .btn.add:hover{background:var(--signal-d)}
+  .btn.ghost{background:#fff;border:1px solid var(--line);color:var(--ink)}
+  .btn.danger{background:#fff;border:1px solid #e3b6b0;color:var(--danger)}
+
+  /* ============ KPI cards / dashboard ============ */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-bottom:22px}
+  .kpi{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 18px;
+    border-top:3px solid var(--sea)}
+  .kpi.amber{border-top-color:var(--signal)}
+  .kpi.green{border-top-color:var(--ok)}
+  .kpi.red{border-top-color:var(--danger)}
+  .kpi .v{font-size:26px;font-weight:800}
+  .kpi .l{font-size:13px;color:var(--ink-2);margin-top:2px}
+  .panel{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin-bottom:18px}
+  .panel h3{font-size:15px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .alert-row{display:flex;justify-content:space-between;gap:10px;padding:9px 4px;border-bottom:1px dashed var(--line);font-size:14px;flex-wrap:wrap}
+  .alert-row:last-child{border-bottom:none}
+  .alert-row .muted{color:var(--ink-2);font-size:13px}
+  .empty{color:var(--ink-2);font-size:14px;padding:8px 4px}
+
+  /* ============ Tables ============ */
+  .tbl-wrap{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);overflow:auto}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:700px}
+  th{position:sticky;top:0;background:#eef1ee;text-align:right;padding:10px 12px;font-size:12.5px;
+    font-weight:700;color:var(--ink-2);white-space:nowrap;border-bottom:1px solid var(--line)}
+  td{padding:9px 12px;border-bottom:1px solid #edf0ed;white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis}
+  tbody tr:hover{background:#f7f9f7;cursor:pointer}
+  .badge{display:inline-block;padding:2px 10px;border-radius:99px;font-size:12px;font-weight:600}
+  .b-gray{background:#e8ebe8;color:#48544d}
+  .b-blue{background:#e1eef5;color:#1f5c79}
+  .b-amber{background:#fbeeda;color:#8a5a10}
+  .b-green{background:#e2f0e8;color:#236646}
+  .b-red{background:#f8e4e1;color:#94352b}
+  .count-note{font-size:12.5px;color:var(--ink-2);padding:10px 4px}
+
+  /* ============ Modal ============ */
+  .modal-bg{position:fixed;inset:0;background:rgba(16,36,55,.45);display:none;
+    align-items:flex-start;justify-content:center;z-index:50;padding:30px 14px;overflow:auto}
+  .modal-bg.open{display:flex}
+  .modal{background:#fff;border-radius:14px;width:min(760px,100%);padding:24px;box-shadow:var(--shadow)}
+  .modal h3{font-size:17px;margin-bottom:16px}
+  .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+  .form-grid .full{grid-column:1/-1}
+  .fld label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-2);margin-bottom:4px}
+  .fld input,.fld select,.fld textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:#fff}
+  .fld input:focus,.fld select:focus,.fld textarea:focus{outline:2px solid var(--signal);border-color:transparent}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-start;margin-top:20px;flex-wrap:wrap}
+
+  /* ============ Import page ============ */
+  .drop{border:2px dashed #c4ccc4;border-radius:var(--radius);padding:34px;text-align:center;
+    background:#fff;color:var(--ink-2)}
+  .drop.on{border-color:var(--signal);background:#fdf6ee}
+  .imp-log{font-size:13.5px;line-height:1.9;margin-top:14px}
+  .imp-log .ok{color:var(--ok);font-weight:600}
+  .imp-log .bad{color:var(--danger);font-weight:600}
+  .toast{position:fixed;bottom:20px;right:20px;background:var(--ink);color:#fff;border-radius:9px;
+    padding:11px 18px;font-size:14px;z-index:99;display:none;box-shadow:var(--shadow)}
+
+  @media (max-width:840px){
+    .shell{grid-template-columns:1fr}
+    nav.side{flex-direction:row;flex-wrap:wrap;align-items:center;padding:8px}
+    .side .brand{border:none;padding:6px 10px;margin:0}
+    .navbtn{width:auto;padding:8px 12px;border-right:none;border-bottom:3px solid transparent}
+    .navbtn.active{border-right:none;border-bottom-color:var(--signal)}
+    .side .spacer,.side .who small{display:none}
+    .side .who{border:none;padding:4px 10px}
+    main{padding:16px}
+  }
+</style>
+</head>
+<body>
+
+<!-- ================= SETUP-NEEDED SCREEN ================= -->
+<div class="gate" id="setupScreen" style="display:none">
+  <div class="gate-card">
+    <div class="brand"><div class="brand-mark">U</div>
+      <h1>המערכת עוד לא מחוברת<br><small>UMI — מערכת ניהול יבוא</small></h1></div>
+    <div class="setup-note">
+      כדי שהאפליקציה תעבוד צריך לחבר אותה למסד הנתונים שלך ב-Supabase.<br>
+      פתחו את הקובץ <code>index.html</code>, מצאו בראש הקוד את השורות של
+      <code>SUPABASE_URL</code> ו-<code>SUPABASE_ANON_KEY</code>, והדביקו שם את שני הערכים
+      מתוך Supabase (לפי המדריך <code>SETUP_GUIDE.md</code> שלב 4).
+    </div>
+  </div>
+</div>
+
+<!-- ================= LOGIN SCREEN ================= -->
+<div class="gate" id="loginScreen" style="display:none">
+  <div class="gate-card">
+    <div class="brand"><div class="brand-mark">U</div>
+      <h1>UMI — מערכת ניהול יבוא<br><small>Universal Import U.M.I Ltd.</small></h1></div>
+    <label for="email">אימייל</label>
+    <input id="email" type="email" autocomplete="username" dir="ltr">
+    <label for="pass">סיסמה</label>
+    <input id="pass" type="password" autocomplete="current-password" dir="ltr">
+    <button class="btn-primary" id="loginBtn">כניסה למערכת</button>
+    <div class="gate-err" id="loginErr"></div>
+  </div>
+</div>
+
+<!-- ================= APP ================= -->
+<div id="app">
+<div class="shell">
+  <nav class="side">
+    <div class="brand"><div class="brand-mark">U</div>
+      <h1>UMI יבוא<br><small>ניהול תפעולי</small></h1></div>
+    <button class="navbtn active" data-page="dashboard"><span class="ic">◧</span>דשבורד</button>
+    <button class="navbtn" data-page="shipments"><span class="ic">⛴</span>משלוחים</button>
+    <button class="navbtn" data-page="payments"><span class="ic">₪</span>תשלומים</button>
+    <button class="navbtn" data-page="suppliers"><span class="ic">⚭</span>ספקים</button>
+    <button class="navbtn" data-page="products"><span class="ic">▤</span>מקטים</button>
+    <button class="navbtn" data-page="import"><span class="ic">⇪</span>ייבוא מאקסל</button>
+    <div class="spacer"></div>
+    <div class="who"><span id="whoami"></span><br>
+      <button id="logoutBtn">התנתקות</button></div>
+  </nav>
+  <main id="main"></main>
+</div>
+</div>
+
+<!-- ================= EDIT MODAL ================= -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h3 id="modalTitle"></h3>
+    <div class="form-grid" id="modalForm"></div>
+    <div class="modal-actions">
+      <button class="btn add" id="modalSave">שמירה</button>
+      <button class="btn ghost" id="modalCancel">ביטול</button>
+      <button class="btn danger" id="modalDelete" style="margin-inline-start:auto">מחיקת רשומה</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+/* =====================================================================
+   CONFIGURATION — the only two lines you must edit (Setup Guide step 4)
+   ===================================================================== */
+const SUPABASE_URL      = "https://xvvfjrrzjhklnydeujhd.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2dmZqcnJ6amhrbG55ZGV1amhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwNzYyODIsImV4cCI6MjA5NjY1MjI4Mn0.4cLeVgREmQlZ8po9ItABlAR5mXnItM34WxXceUBGrho";  // Supabase -> Project Settings -> API -> "anon public"
+
+/* ============== Dropdown lists (from your הגדרות sheet) ============== */
+const LISTS = {
+  orderStatus:    ["פתוח","סגור"],
+  shipmentStatus: ["בתשלום","בייצור","בבוקינג","במשלוח","בנמל ממתין לשחרור","למכור"],
+  shipType:       ["ימי","אווירי"],
+  containerSize:  ["LCL","40","20"],
+  payStatus:      ["יש לבצע תשלום","שולם במלואו"],
+  payType:        ["SWIFT","כרטיס אשראי"],
+  supplierType:   ["חו\"ל","מקומי"],
+};
+
+/* ============== Entity schemas — drive tables, forms, import ========= */
+const SCHEMAS = {
+  shipments: {
+    title:"משלוחים", icon:"⛴", table:"shipments", orderBy:{col:"eta",asc:true},
+    fields:[
+      {k:"order_status",l:"סטטוס הזמנה",t:"select",opts:LISTS.orderStatus,badge:v=>v==="פתוח"?"b-green":"b-gray"},
+      {k:"supplier_no",l:"מספר ספק"},
+      {k:"supplier_name",l:"שם הספק"},
+      {k:"product",l:"מוצר",wide:true},
+      {k:"goods_cost",l:"עלות סחורה ($)",t:"number"},
+      {k:"freight_cost",l:"עלות משלוח ($)",t:"number"},
+      {k:"status",l:"סטטוס משלוח",t:"select",opts:LISTS.shipmentStatus,
+        badge:v=>({"במשלוח":"b-blue","בייצור":"b-amber","בבוקינג":"b-amber","בתשלום":"b-amber","בנמל ממתין לשחרור":"b-red","למכור":"b-green"}[v]||"b-gray")},
+      {k:"ship_type",l:"סוג משלוח",t:"select",opts:LISTS.shipType},
+      {k:"prod_end",l:"צפי סיום ייצור",t:"date"},
+      {k:"etd",l:"ETD — יציאה",t:"date"},
+      {k:"eta",l:"ETA — הגעה",t:"date"},
+      {k:"destination",l:"יעד סחורה"},
+      {k:"container_size",l:"גודל מכולה",t:"select",opts:LISTS.containerSize},
+      {k:"box_count",l:"כמות ארגזים",t:"number"},
+      {k:"container_no",l:"מספר מכולה"},
+      {k:"tafnit_po",l:"הזמנת רכש תפנית"},
+      {k:"tafnit_shipment_no",l:"מספר משלוח תפנית"},
+      {k:"tafnit_last_status",l:"סטטוס אחרון בתפנית"},
+      {k:"broker_file",l:"מספר תיק עמיל"},
+      {k:"broker",l:"עמיל"},
+      {k:"notes",l:"הערות",t:"textarea",wide:true},
+    ],
+    cols:["order_status","supplier_name","product","status","ship_type","eta","goods_cost","freight_cost","destination","container_no","tafnit_po","broker"],
+    filters:[{k:"order_status",l:"כל ההזמנות",opts:LISTS.orderStatus},
+             {k:"status",l:"כל סטטוסי המשלוח",opts:LISTS.shipmentStatus}],
+    computed:r=>({ "עלות פרויקט":fmtMoney((+r.goods_cost||0)+(+r.freight_cost||0)) })
+  },
+  payments: {
+    title:"תשלומים", icon:"₪", table:"payments", orderBy:{col:"advance_date",asc:false},
+    fields:[
+      {k:"status",l:"סטטוס תשלום",t:"select",opts:LISTS.payStatus,badge:v=>v==="שולם במלואו"?"b-green":"b-red"},
+      {k:"manufacturer",l:"יצרן"},
+      {k:"supplier_no",l:"מספר ספק"},
+      {k:"details",l:"פירוט",wide:true},
+      {k:"order_no",l:"מספר הזמנה"},
+      {k:"category",l:"קטגוריית מוצרים"},
+      {k:"pay_type",l:"סוג תשלום",t:"select",opts:LISTS.payType},
+      {k:"invoice_total",l:"מחיר חשבונית מלא ($)",t:"number"},
+      {k:"advance_date",l:"תאריך שליחת מקדמה",t:"date"},
+      {k:"advance_amount",l:"סכום לתשלום מיידי ($)",t:"number"},
+      {k:"balance_date",l:"תאריך שליחת יתרה",t:"date"},
+      {k:"balance_amount",l:"יתרה לאחר ייצור ($)",t:"number"},
+    ],
+    cols:["status","manufacturer","details","order_no","pay_type","invoice_total","advance_date","advance_amount","balance_amount"],
+    filters:[{k:"status",l:"כל הסטטוסים",opts:LISTS.payStatus}],
+  },
+  suppliers: {
+    title:"ספקים", icon:"⚭", table:"suppliers", orderBy:{col:"tafnit_no",asc:true},
+    fields:[
+      {k:"name",l:"שם ספק"},
+      {k:"description",l:"תיאור"},
+      {k:"tafnit_no",l:"מס ספק תפנית"},
+      {k:"account_no",l:"מס ספק חשבונות"},
+      {k:"transit_no",l:"מספר סחורה בדרך"},
+      {k:"supplier_type",l:"סוג ספק",t:"select",opts:LISTS.supplierType,badge:v=>v==="מקומי"?"b-amber":"b-blue"},
+    ],
+    cols:["tafnit_no","name","description","supplier_type","account_no","transit_no"],
+    filters:[{k:"supplier_type",l:"כל הסוגים",opts:LISTS.supplierType}],
+  },
+  products: {
+    title:"מקטים — אביזרי רכב", icon:"▤", table:"products", orderBy:{col:"inner_sku",asc:true},
+    fields:[
+      {k:"inner_sku",l:"מקט פנימי (INNER SKU)"},
+      {k:"product_name",l:"שם מוצר / מקט יצרן"},
+      {k:"desc_en",l:"תיאור באנגלית",wide:true},
+      {k:"desc_he",l:"תיאור בעברית",wide:true},
+      {k:"manufacturer",l:"יצרן"},
+      {k:"supplier_tafnit_no",l:"מס ספק תפנית"},
+    ],
+    cols:["inner_sku","desc_he","desc_en","manufacturer","supplier_tafnit_no"],
+    filters:[],
+  },
+};
+
+/* ===================== Small utilities ===================== */
+const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
+const fmtMoney=v=>v==null||v===""?"":Number(v).toLocaleString("en-US",{maximumFractionDigits:0});
+const fmtDate=v=>{ if(!v)return""; const d=new Date(v); return isNaN(d)?"":d.toLocaleDateString("he-IL"); };
+const daysTo=v=>{ if(!v)return null; return Math.round((new Date(v)-new Date().setHours(0,0,0,0))/864e5); };
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.style.display="block";
+  clearTimeout(t._h); t._h=setTimeout(()=>t.style.display="none",3200); }
+function esc(s){ return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+/* Convert anything Excel might give us into an ISO date string or null */
+function exDate(v){
+  if(v==null||v==="")return null;
+  if(v instanceof Date && !isNaN(v)) return v.toISOString().slice(0,10);
+  if(typeof v==="number" && v>20000 && v<60000){           // Excel serial date
+    return new Date(Math.round((v-25569)*864e5)).toISOString().slice(0,10);
+  }
+  const d=new Date(v); return isNaN(d)?null:d.toISOString().slice(0,10);
+}
+const exNum=v=>{ if(v==null||v==="")return null; const n=Number(String(v).replace(/[, ]/g,"")); return isNaN(n)?null:n; };
+const exTxt=v=>v==null?null:String(v).trim()||null;
+
+/* ===================== Supabase client ===================== */
+let sb=null, cache={};   // cache: latest loaded rows per table (for dashboard & lists)
+
+function boot(){
+  if(SUPABASE_ANON_KEY.includes("PASTE_")){
+    $("#setupScreen").style.display="flex"; return;
+  }
+  sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  sb.auth.onAuthStateChange((_e,session)=>{
+    if(session){ showApp(session.user.email); } else { showLogin(); }
+  });
+}
+function showLogin(){ $("#app").style.display="none"; $("#loginScreen").style.display="flex"; }
+async function showApp(email){
+  $("#loginScreen").style.display="none"; $("#app").style.display="block";
+  $("#whoami").textContent=email;
+  go("dashboard");
+}
+$("#loginBtn")?.addEventListener("click",login);
+document.addEventListener("keydown",e=>{ if(e.key==="Enter"&&$("#loginScreen").style.display==="flex") login(); });
+async function login(){
+  $("#loginErr").textContent="";
+  const {error}=await sb.auth.signInWithPassword({email:$("#email").value.trim(),password:$("#pass").value});
+  if(error) $("#loginErr").textContent="הכניסה נכשלה — בדקו אימייל וסיסמה.";
+}
+document.addEventListener("click",e=>{ if(e.target.id==="logoutBtn") sb.auth.signOut(); });
+
+/* ===================== Data access ===================== */
+async function loadTable(name){
+  const sc=Object.values(SCHEMAS).find(s=>s.table===name);
+  let q=sb.from(name).select("*").range(0,4999);
+  if(sc?.orderBy) q=q.order(sc.orderBy.col,{ascending:sc.orderBy.asc,nullsFirst:false});
+  const {data,error}=await q;
+  if(error){ toast("שגיאה בטעינת "+name+": "+error.message); return []; }
+  cache[name]=data; return data;
+}
+
+/* ===================== Navigation ===================== */
+$$(".navbtn").forEach(b=>b.addEventListener("click",()=>go(b.dataset.page)));
+function go(page){
+  $$(".navbtn").forEach(b=>b.classList.toggle("active",b.dataset.page===page));
+  if(page==="dashboard") renderDashboard();
+  else if(page==="import") renderImport();
+  else renderEntity(page);
+}
+
+/* ===================== Dashboard ===================== */
+async function renderDashboard(){
+  $("#main").innerHTML=`<div class="page-head"><div><h2>דשבורד תפעולי</h2>
+    <div class="sub">תמונת מצב חיה — משלוחים, תשלומים וקטלוג</div></div></div>
+    <div class="kpis" id="kpis"></div>
+    <div class="panel"><h3>⛴ מתקרבים לארץ — 21 הימים הקרובים</h3><div id="arriving"></div></div>
+    <div class="panel"><h3>₪ תשלומים פתוחים</h3><div id="duePays"></div></div>`;
+  const [ships,pays,prods,sups]=await Promise.all([
+    loadTable("shipments"),loadTable("payments"),loadTable("products"),loadTable("suppliers")]);
+
+  const open=ships.filter(r=>r.order_status==="פתוח");
+  const arriving=ships.filter(r=>r.order_status==="פתוח"&&r.eta&&daysTo(r.eta)>=0&&daysTo(r.eta)<=21)
+                      .sort((a,b)=>new Date(a.eta)-new Date(b.eta));
+  const due=pays.filter(r=>r.status==="יש לבצע תשלום");
+  const dueSum=due.reduce((s,r)=>s+(+r.advance_amount||0),0);
+  const transitVal=open.reduce((s,r)=>s+(+r.goods_cost||0),0);
+
+  $("#kpis").innerHTML=`
+    <div class="kpi"><div class="v num">${open.length}</div><div class="l">משלוחים פתוחים</div></div>
+    <div class="kpi amber"><div class="v num">${arriving.length}</div><div class="l">מגיעים תוך 21 יום</div></div>
+    <div class="kpi red"><div class="v num">$${fmtMoney(dueSum)}</div><div class="l">לתשלום מיידי (${due.length} תשלומים)</div></div>
+    <div class="kpi green"><div class="v num">$${fmtMoney(transitVal)}</div><div class="l">שווי סחורה בהזמנות פתוחות</div></div>
+    <div class="kpi"><div class="v num">${prods.length}</div><div class="l">מקטים בקטלוג · ${sups.length} ספקים</div></div>`;
+
+  $("#arriving").innerHTML = arriving.length ? arriving.map(r=>`
+    <div class="alert-row"><span><b>${esc(r.product)}</b> — ${esc(r.supplier_name||"")}</span>
+    <span class="muted">ETA ${fmtDate(r.eta)} (בעוד ${daysTo(r.eta)} ימים) · ${esc(r.status||"")} · ${esc(r.destination||"")}</span></div>`).join("")
+    : `<div class="empty">אין משלוחים שמגיעים בשלושת השבועות הקרובים.</div>`;
+
+  $("#duePays").innerHTML = due.length ? due.map(r=>`
+    <div class="alert-row"><span><b>${esc(r.details)}</b> — ${esc(r.manufacturer||"")}</span>
+    <span class="muted num">$${fmtMoney(r.advance_amount)} · מקדמה ${fmtDate(r.advance_date)} · הזמנה ${esc(r.order_no||"")}</span></div>`).join("")
+    : `<div class="empty">אין תשלומים פתוחים. 🎉</div>`;
+}
+
+/* ===================== Generic entity page ===================== */
+let currentEntity=null, currentFilters={}, currentSearch="";
+async function renderEntity(key){
+  currentEntity=key; currentFilters={}; currentSearch="";
+  const sc=SCHEMAS[key];
+  $("#main").innerHTML=`<div class="page-head">
+    <div><h2>${sc.icon} ${sc.title}</h2><div class="sub" id="entSub"></div></div>
+    <div class="toolbar">
+      <input type="search" id="entSearch" placeholder="חיפוש חופשי…">
+      ${sc.filters.map((f,i)=>`<select data-fk="${f.k}" class="entFilter">
+        <option value="">${f.l}</option>${f.opts.map(o=>`<option>${o}</option>`).join("")}</select>`).join("")}
+      <button class="btn add" id="entAdd">+ הוספה</button>
+    </div></div>
+    <div class="tbl-wrap"><table><thead id="entHead"></thead><tbody id="entBody"></tbody></table></div>
+    <div class="count-note" id="entCount"></div>`;
+  $("#entSearch").addEventListener("input",e=>{currentSearch=e.target.value;drawRows();});
+  $$(".entFilter").forEach(s=>s.addEventListener("change",e=>{currentFilters[e.target.dataset.fk]=e.target.value;drawRows();}));
+  $("#entAdd").addEventListener("click",()=>openModal(key,null));
+  await loadTable(sc.table);
+  drawRows();
+}
+function drawRows(){
+  const sc=SCHEMAS[currentEntity], rows=cache[sc.table]||[];
+  const f=sc.fields.reduce((m,x)=>(m[x.k]=x,m),{});
+  const q=currentSearch.trim().toLowerCase();
+  const view=rows.filter(r=>{
+    for(const[k,v]of Object.entries(currentFilters)) if(v && r[k]!==v) return false;
+    if(!q) return true;
+    return Object.values(r).some(x=>String(x??"").toLowerCase().includes(q));
+  });
+  $("#entHead").innerHTML="<tr>"+sc.cols.map(c=>`<th>${f[c].l}</th>`).join("")+"</tr>";
+  $("#entBody").innerHTML=view.map(r=>"<tr data-id='"+r.id+"'>"+sc.cols.map(c=>{
+    const fd=f[c]; let v=r[c];
+    if(fd.t==="date") v=`<span class="num">${fmtDate(v)}</span>`;
+    else if(fd.t==="number") v=`<span class="num">${fmtMoney(v)}</span>`;
+    else if(fd.badge&&v) v=`<span class="badge ${fd.badge(v)}">${esc(v)}</span>`;
+    else v=esc(v);
+    return `<td>${v??""}</td>`; }).join("")+"</tr>").join("");
+  $("#entCount").textContent=`מציג ${view.length} מתוך ${rows.length} רשומות`;
+  $$("#entBody tr").forEach(tr=>tr.addEventListener("click",()=>{
+    const row=rows.find(r=>String(r.id)===tr.dataset.id); openModal(currentEntity,row); }));
+}
+
+/* ===================== Modal (add / edit / delete) ===================== */
+let modalRow=null, modalKey=null;
+function openModal(key,row){
+  modalKey=key; modalRow=row; const sc=SCHEMAS[key];
+  $("#modalTitle").textContent=(row?"עריכת רשומה — ":"רשומה חדשה — ")+sc.title;
+  $("#modalDelete").style.display=row?"inline-block":"none";
+  $("#modalForm").innerHTML=sc.fields.map(fd=>{
+    const v=row?(row[fd.k]??""):"";
+    let inp;
+    if(fd.t==="select") inp=`<select id="f_${fd.k}"><option value=""></option>${fd.opts.map(o=>`<option ${o===v?"selected":""}>${o}</option>`).join("")}</select>`;
+    else if(fd.t==="textarea") inp=`<textarea id="f_${fd.k}" rows="2">${esc(v)}</textarea>`;
+    else inp=`<input id="f_${fd.k}" type="${fd.t==="number"?"number":fd.t==="date"?"date":"text"}" value="${esc(fd.t==="date"&&v?String(v).slice(0,10):v)}" ${fd.t==="number"?'step="any" dir="ltr"':""}>`;
+    return `<div class="fld ${fd.wide?"full":""}"><label>${fd.l}</label>${inp}</div>`;
+  }).join("");
+  if(key==="shipments"&&row&&sc.computed){
+    const c=sc.computed(row);
+    $("#modalForm").insertAdjacentHTML("beforeend",
+      Object.entries(c).map(([k,v])=>`<div class="fld"><label>${k} (מחושב)</label><input value="${v}" disabled></div>`).join(""));
+  }
+  $("#modalBg").classList.add("open");
+}
+$("#modalCancel").addEventListener("click",()=>$("#modalBg").classList.remove("open"));
+$("#modalBg").addEventListener("click",e=>{ if(e.target.id==="modalBg") $("#modalBg").classList.remove("open"); });
+$("#modalSave").addEventListener("click",async()=>{
+  const sc=SCHEMAS[modalKey], rec={};
+  for(const fd of sc.fields){
+    let v=$("#f_"+fd.k).value;
+    if(fd.t==="number") v=exNum(v);
+    else if(fd.t==="date") v=v||null;
+    else v=exTxt(v);
+    rec[fd.k]=v;
+  }
+  let error;
+  if(modalRow) ({error}=await sb.from(sc.table).update(rec).eq("id",modalRow.id));
+  else ({error}=await sb.from(sc.table).insert(rec));
+  if(error){ toast("שמירה נכשלה: "+error.message); return; }
+  $("#modalBg").classList.remove("open");
+  toast("הרשומה נשמרה ✓");
+  await loadTable(sc.table); drawRows();
+});
+$("#modalDelete").addEventListener("click",async()=>{
+  if(!confirm("למחוק את הרשומה לצמיתות?")) return;
+  const sc=SCHEMAS[modalKey];
+  const {error}=await sb.from(sc.table).delete().eq("id",modalRow.id);
+  if(error){ toast("מחיקה נכשלה: "+error.message); return; }
+  $("#modalBg").classList.remove("open"); toast("הרשומה נמחקה");
+  await loadTable(sc.table); drawRows();
+});
+
+/* ===================== Excel import ===================== */
+function renderImport(){
+  $("#main").innerHTML=`<div class="page-head"><div><h2>⇪ ייבוא מאקסל</h2>
+    <div class="sub">גררו לכאן את שלושת הקבצים (אפשר יחד): ניהול · מספרי ספקים · מקטים</div></div></div>
+    <div class="drop" id="drop">שחררו קבצים כאן או <label style="color:var(--signal);cursor:pointer;font-weight:600">בחרו קבצים<input type="file" id="fileIn" multiple accept=".xlsx,.xls" hidden></label></div>
+    <div class="panel" style="margin-top:16px">
+      <label style="font-size:13.5px;display:flex;gap:8px;align-items:center">
+        <input type="checkbox" id="wipe"> למחוק נתונים קיימים בטבלה לפני הייבוא (מומלץ בייבוא ראשון חוזר, כדי למנוע כפילויות)</label>
+      <div class="imp-log" id="impLog"></div></div>`;
+  const drop=$("#drop");
+  drop.addEventListener("dragover",e=>{e.preventDefault();drop.classList.add("on");});
+  drop.addEventListener("dragleave",()=>drop.classList.remove("on"));
+  drop.addEventListener("drop",e=>{e.preventDefault();drop.classList.remove("on");handleFiles(e.dataTransfer.files);});
+  $("#fileIn").addEventListener("change",e=>handleFiles(e.target.files));
+}
+function log(msg,cls){ $("#impLog").insertAdjacentHTML("beforeend",`<div class="${cls||""}">${msg}</div>`); }
+
+async function handleFiles(files){
+  for(const file of files){
+    log(`📄 קורא את <b>${esc(file.name)}</b>…`);
+    try{
+      const wb=XLSX.read(await file.arrayBuffer(),{cellDates:true});
+      let matched=false;
+      // --- ניהול file: shipments + payments sheets ---
+      if(wb.SheetNames.includes("משלוחים")){ matched=true;
+        await importSheet(wb.Sheets["משלוחים"],"shipments",mapShipment,["מספר ספק","שם הספק"]);
+        if(wb.SheetNames.includes("תשלומים"))
+          await importSheet(wb.Sheets["תשלומים"],"payments",mapPayment,["סטטוס תשלום","יצרן"]);
+      }
+      // --- suppliers file ---
+      for(const sn of wb.SheetNames){
+        const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:null});
+        const hdr=rows.find(r=>r&&r.includes("שם ספק")&&r.some(c=>String(c||"").includes("מס ספק תפנית")));
+        if(hdr && !wb.SheetNames.includes("משלוחים") && !hdr.includes("INNER SKU")){
+          matched=true; await importSheet(wb.Sheets[sn],"suppliers",mapSupplier,["שם ספק"]); break;
+        }
+      }
+      // --- products file ---
+      for(const sn of wb.SheetNames){
+        const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:null});
+        if(rows.some(r=>r&&r.includes("INNER SKU"))){
+          matched=true; await importSheet(wb.Sheets[sn],"products",mapProduct,["INNER SKU"]); break;
+        }
+      }
+      if(!matched) log(`לא זיהיתי את מבנה הקובץ ${esc(file.name)} — ודאו שזה אחד משלושת הקבצים.`,"bad");
+    }catch(err){ log("שגיאה בקריאת הקובץ: "+esc(err.message),"bad"); }
+  }
+}
+
+/* Find the header row by required column names, then map every data row */
+async function importSheet(sheet,table,mapper,mustHave){
+  const rows=XLSX.utils.sheet_to_json(sheet,{header:1,defval:null});
+  const hi=rows.findIndex(r=>r&&mustHave.every(m=>r.some(c=>String(c||"").trim().startsWith(m))));
+  if(hi<0){ log(`לא נמצאה שורת כותרת עבור ${table}`,"bad"); return; }
+  const hdr=rows[hi].map(c=>String(c||"").trim());
+  const idx=name=>hdr.findIndex(h=>h.startsWith(name));
+  const recs=[];
+  for(let i=hi+1;i<rows.length;i++){
+    const r=rows[i]; if(!r||r.every(c=>c==null||c==="")) continue;
+    const rec=mapper(r,idx);
+    if(rec) recs.push(rec);
+  }
+  if($("#wipe").checked){
+    const {error}=await sb.from(table).delete().gte("id",0);
+    if(error){ log(`מחיקת ${table} נכשלה: ${esc(error.message)}`,"bad"); return; }
+  }
+  for(let i=0;i<recs.length;i+=200){
+    const {error}=await sb.from(table).insert(recs.slice(i,i+200));
+    if(error){ log(`ייבוא ${table} נכשל: ${esc(error.message)}`,"bad"); return; }
+  }
+  log(`✓ ${table}: יובאו ${recs.length} רשומות`,"ok");
+}
+
+/* ----- mappers: Excel row -> database record ----- */
+function mapShipment(r,ix){
+  const get=n=>r[ix(n)];
+  if(!exTxt(get("שם הספק"))&&!exTxt(get("מוצר"))) return null;
+  return {
+    order_status:exTxt(get("סטטוס")), supplier_no:exTxt(get("מספר ספק")),
+    supplier_name:exTxt(get("שם הספק")), product:exTxt(get("מוצר")),
+    goods_cost:exNum(get("עלות הסחורה")), freight_cost:exNum(get("עלות משלוח")),
+    status:exTxt(r[8]),                       /* second סטטוס column (shipment status) */
+    notes:exTxt(get("הערות")), ship_type:exTxt(get("סוג משלוח")),
+    prod_end:exDate(get("צפי סיום ייצור")), etd:exDate(get("תאריך יציאת הפלגה")),
+    eta:exDate(get("צפי הגעה לארץ")), destination:exTxt(get("יעד סחורה")),
+    container_size:exTxt(get("גודל מכולה")), box_count:exNum(get("כמות ארגזים")),
+    container_no:exTxt(get("מספר מכולה")), tafnit_po:exTxt(get("הזמנת רכש תפנית")),
+    tafnit_shipment_no:exTxt(get("מספר משלוח תפנית")), tafnit_last_status:exTxt(get("סטטוס אחרון בתפנית")),
+    broker_file:exTxt(get("מספר תיק עמיל")), broker:exTxt(get("עמיל")),
+  };
+}
+function mapPayment(r,ix){
+  const get=n=>r[ix(n)];
+  if(!exTxt(get("יצרן"))&&!exTxt(get("פירוט"))) return null;
+  return {
+    status:exTxt(get("סטטוס תשלום")), manufacturer:exTxt(get("יצרן")),
+    supplier_no:exTxt(get("מספר ספק")), details:exTxt(get("פירוט")),
+    order_no:exTxt(get("מספר הזמנה")), category:exTxt(get("קטגוריית מוצרים")),
+    pay_type:exTxt(get("סוג תשלום")), invoice_total:exNum(get("מחיר חשבונית מלא")),
+    advance_date:exDate(get("תאריך שליחת מקדמה")), advance_amount:exNum(get("סכום לתשלום מיידי")),
+    balance_date:exDate(get("תאריך שליחת יתרה")), balance_amount:exNum(get("יתרה לתשלום")),
+  };
+}
+function mapSupplier(r,ix){
+  const get=n=>r[ix(n)];
+  if(!exTxt(get("שם ספק"))) return null;
+  return {
+    name:exTxt(get("שם ספק")), description:exTxt(get("תיאור")),
+    account_no:exTxt(get("מס ספק חשבונות")), transit_no:exTxt(get("מספר סחורה בדרך")),
+    tafnit_no:exTxt(get("מס ספק תפנית")), supplier_type:exTxt(get("סוג ספק")),
+  };
+}
+function mapProduct(r,ix){
+  const get=n=>r[ix(n)];
+  if(!exTxt(get("INNER SKU"))) return null;
+  return {
+    inner_sku:exTxt(get("INNER SKU")), product_name:exTxt(get("PRODUCT NAME")),
+    desc_en:exTxt(get("תיאור באנגלית")), desc_he:exTxt(get("תיאור בעברית")),
+    manufacturer:exTxt(get("MANUFACTURER")), supplier_tafnit_no:exTxt(get("מס ספק תפנית")),
+  };
+}
+
+boot();
+</script>
+</body>
+</html>
