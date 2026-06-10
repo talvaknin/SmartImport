@@ -121,8 +121,14 @@
   .modal-bg{position:fixed;inset:0;background:rgba(16,36,55,.45);display:none;
     align-items:flex-start;justify-content:center;z-index:50;padding:30px 14px;overflow:auto}
   .modal-bg.open{display:flex}
-  .modal{background:#fff;border-radius:14px;width:min(760px,100%);padding:24px;box-shadow:var(--shadow)}
-  .modal h3{font-size:17px;margin-bottom:16px}
+  .modal{background:#fff;border-radius:14px;width:min(760px,100%);padding:24px;box-shadow:var(--shadow);position:relative}
+  .modal h3{font-size:17px;margin-bottom:4px;padding-inline-end:34px}
+  .modal-x{position:absolute;top:14px;inset-inline-start:14px;width:32px;height:32px;border-radius:8px;
+    border:1px solid var(--line);background:#fff;color:var(--ink-2);font-size:15px}
+  .modal-x:hover{background:#f2f4f2}
+  .modal-hint{font-size:12.5px;color:var(--ink-2);margin-bottom:14px}
+  .req-star{color:var(--danger);font-weight:700}
+  .fld.missing input,.fld.missing select,.fld.missing textarea{border-color:var(--danger);background:#fdf1ef}
   .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
   .form-grid .full{grid-column:1/-1}
   .fld label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-2);margin-bottom:4px}
@@ -140,6 +146,17 @@
   .toast{position:fixed;bottom:20px;right:20px;background:var(--ink);color:#fff;border-radius:9px;
     padding:11px 18px;font-size:14px;z-index:99;display:none;box-shadow:var(--shadow)}
 
+  /* ============ Mobile cards + floating add button ============ */
+  .cards{display:none;grid-template-columns:1fr;gap:10px}
+  .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 14px}
+  .card .t{font-weight:700;font-size:15px;margin-bottom:6px}
+  .card .kv{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;padding:2.5px 0;border-bottom:1px dashed #eef1ee}
+  .card .kv:last-child{border-bottom:none}
+  .card .kv .k{color:var(--ink-2);flex-shrink:0}
+  .fab{display:none;position:fixed;bottom:20px;inset-inline-start:20px;z-index:40;width:56px;height:56px;
+    border-radius:50%;background:var(--signal);color:#fff;font-size:28px;border:none;
+    box-shadow:0 4px 16px rgba(21,33,46,.3);align-items:center;justify-content:center;line-height:1}
+
   @media (max-width:840px){
     .shell{grid-template-columns:1fr}
     nav.side{flex-direction:row;flex-wrap:wrap;align-items:center;padding:8px}
@@ -148,7 +165,10 @@
     .navbtn.active{border-right:none;border-bottom-color:var(--signal)}
     .side .spacer,.side .who small{display:none}
     .side .who{border:none;padding:4px 10px}
-    main{padding:16px}
+    main{padding:16px;padding-bottom:90px}
+    .tbl-wrap{display:none}            /* wide tables off on phones... */
+    .cards{display:grid}               /* ...cards on */
+    .fab{display:flex}                 /* floating + always reachable */
   }
 </style>
 </head>
@@ -205,7 +225,9 @@
 <!-- ================= EDIT MODAL ================= -->
 <div class="modal-bg" id="modalBg">
   <div class="modal">
+    <button class="modal-x" id="modalX" title="סגירה">✕</button>
     <h3 id="modalTitle"></h3>
+    <div class="modal-hint">שדות המסומנים ב-<span class="req-star">*</span> הם חובה — כל השאר אופציונליים. סגירה רק דרך הכפתורים (לחיצה מחוץ לחלון לא סוגרת).</div>
     <div class="form-grid" id="modalForm"></div>
     <div class="modal-actions">
       <button class="btn add" id="modalSave">שמירה</button>
@@ -224,7 +246,7 @@
    CONFIGURATION — the only two lines you must edit (Setup Guide step 4)
    ===================================================================== */
 const SUPABASE_URL      = "https://xvvfjrrzjhklnydeujhd.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2dmZqcnJ6amhrbG55ZGV1amhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwNzYyODIsImV4cCI6MjA5NjY1MjI4Mn0.4cLeVgREmQlZ8po9ItABlAR5mXnItM34WxXceUBGrho";  // Supabase -> Project Settings -> API -> "anon public"
+const SUPABASE_ANON_KEY = "PASTE_YOUR_ANON_KEY_HERE";  // Supabase -> Project Settings -> API -> "anon public"
 
 /* ============== Dropdown lists (from your הגדרות sheet) ============== */
 const LISTS = {
@@ -242,13 +264,13 @@ const SCHEMAS = {
   shipments: {
     title:"משלוחים", icon:"⛴", table:"shipments", orderBy:{col:"eta",asc:true},
     fields:[
-      {k:"order_status",l:"סטטוס הזמנה",t:"select",opts:LISTS.orderStatus,badge:v=>v==="פתוח"?"b-green":"b-gray"},
+      {k:"order_status",l:"סטטוס הזמנה",t:"select",req:true,opts:LISTS.orderStatus,badge:v=>v==="פתוח"?"b-green":"b-gray"},
       {k:"supplier_no",l:"מספר ספק"},
-      {k:"supplier_name",l:"שם הספק"},
-      {k:"product",l:"מוצר",wide:true},
+      {k:"supplier_name",l:"שם הספק",req:true},
+      {k:"product",l:"מוצר",req:true,wide:true},
       {k:"goods_cost",l:"עלות סחורה ($)",t:"number"},
       {k:"freight_cost",l:"עלות משלוח ($)",t:"number"},
-      {k:"status",l:"סטטוס משלוח",t:"select",opts:LISTS.shipmentStatus,
+      {k:"status",l:"סטטוס משלוח",t:"select",req:true,opts:LISTS.shipmentStatus,
         badge:v=>({"במשלוח":"b-blue","בייצור":"b-amber","בבוקינג":"b-amber","בתשלום":"b-amber","בנמל ממתין לשחרור":"b-red","למכור":"b-green"}[v]||"b-gray")},
       {k:"ship_type",l:"סוג משלוח",t:"select",opts:LISTS.shipType},
       {k:"prod_end",l:"צפי סיום ייצור",t:"date"},
@@ -266,6 +288,7 @@ const SCHEMAS = {
       {k:"notes",l:"הערות",t:"textarea",wide:true},
     ],
     cols:["order_status","supplier_name","product","status","ship_type","eta","goods_cost","freight_cost","destination","container_no","tafnit_po","broker"],
+    card:["product","supplier_name","status","eta","goods_cost","destination"],
     filters:[{k:"order_status",l:"כל ההזמנות",opts:LISTS.orderStatus},
              {k:"status",l:"כל סטטוסי המשלוח",opts:LISTS.shipmentStatus}],
     computed:r=>({ "עלות פרויקט":fmtMoney((+r.goods_cost||0)+(+r.freight_cost||0)) })
@@ -273,10 +296,10 @@ const SCHEMAS = {
   payments: {
     title:"תשלומים", icon:"₪", table:"payments", orderBy:{col:"advance_date",asc:false},
     fields:[
-      {k:"status",l:"סטטוס תשלום",t:"select",opts:LISTS.payStatus,badge:v=>v==="שולם במלואו"?"b-green":"b-red"},
+      {k:"status",l:"סטטוס תשלום",t:"select",req:true,opts:LISTS.payStatus,badge:v=>v==="שולם במלואו"?"b-green":"b-red"},
       {k:"manufacturer",l:"יצרן"},
       {k:"supplier_no",l:"מספר ספק"},
-      {k:"details",l:"פירוט",wide:true},
+      {k:"details",l:"פירוט",req:true,wide:true},
       {k:"order_no",l:"מספר הזמנה"},
       {k:"category",l:"קטגוריית מוצרים"},
       {k:"pay_type",l:"סוג תשלום",t:"select",opts:LISTS.payType},
@@ -287,12 +310,13 @@ const SCHEMAS = {
       {k:"balance_amount",l:"יתרה לאחר ייצור ($)",t:"number"},
     ],
     cols:["status","manufacturer","details","order_no","pay_type","invoice_total","advance_date","advance_amount","balance_amount"],
+    card:["details","manufacturer","status","invoice_total","advance_amount","advance_date"],
     filters:[{k:"status",l:"כל הסטטוסים",opts:LISTS.payStatus}],
   },
   suppliers: {
     title:"ספקים", icon:"⚭", table:"suppliers", orderBy:{col:"tafnit_no",asc:true},
     fields:[
-      {k:"name",l:"שם ספק"},
+      {k:"name",l:"שם ספק",req:true},
       {k:"description",l:"תיאור"},
       {k:"tafnit_no",l:"מס ספק תפנית"},
       {k:"account_no",l:"מס ספק חשבונות"},
@@ -300,19 +324,21 @@ const SCHEMAS = {
       {k:"supplier_type",l:"סוג ספק",t:"select",opts:LISTS.supplierType,badge:v=>v==="מקומי"?"b-amber":"b-blue"},
     ],
     cols:["tafnit_no","name","description","supplier_type","account_no","transit_no"],
+    card:["name","description","tafnit_no","supplier_type"],
     filters:[{k:"supplier_type",l:"כל הסוגים",opts:LISTS.supplierType}],
   },
   products: {
     title:"מקטים — אביזרי רכב", icon:"▤", table:"products", orderBy:{col:"inner_sku",asc:true},
     fields:[
-      {k:"inner_sku",l:"מקט פנימי (INNER SKU)"},
+      {k:"inner_sku",l:"מקט פנימי (INNER SKU)",req:true},
       {k:"product_name",l:"שם מוצר / מקט יצרן"},
       {k:"desc_en",l:"תיאור באנגלית",wide:true},
-      {k:"desc_he",l:"תיאור בעברית",wide:true},
+      {k:"desc_he",l:"תיאור בעברית",req:true,wide:true},
       {k:"manufacturer",l:"יצרן"},
       {k:"supplier_tafnit_no",l:"מס ספק תפנית"},
     ],
     cols:["inner_sku","desc_he","desc_en","manufacturer","supplier_tafnit_no"],
+    card:["desc_he","inner_sku","manufacturer","supplier_tafnit_no"],
     filters:[],
   },
 };
@@ -427,18 +453,28 @@ async function renderEntity(key){
   $("#main").innerHTML=`<div class="page-head">
     <div><h2>${sc.icon} ${sc.title}</h2><div class="sub" id="entSub"></div></div>
     <div class="toolbar">
+      <button class="btn add" id="entAdd">+ הוספה</button>
       <input type="search" id="entSearch" placeholder="חיפוש חופשי…">
       ${sc.filters.map((f,i)=>`<select data-fk="${f.k}" class="entFilter">
         <option value="">${f.l}</option>${f.opts.map(o=>`<option>${o}</option>`).join("")}</select>`).join("")}
-      <button class="btn add" id="entAdd">+ הוספה</button>
     </div></div>
     <div class="tbl-wrap"><table><thead id="entHead"></thead><tbody id="entBody"></tbody></table></div>
+    <div class="cards" id="entCards"></div>
+    <button class="fab" id="entFab" title="הוספה">+</button>
     <div class="count-note" id="entCount"></div>`;
   $("#entSearch").addEventListener("input",e=>{currentSearch=e.target.value;drawRows();});
   $$(".entFilter").forEach(s=>s.addEventListener("change",e=>{currentFilters[e.target.dataset.fk]=e.target.value;drawRows();}));
   $("#entAdd").addEventListener("click",()=>openModal(key,null));
+  $("#entFab").addEventListener("click",()=>openModal(key,null));
   await loadTable(sc.table);
   drawRows();
+}
+function fmtVal(fd,v){
+  if(v==null||v==="") return "";
+  if(fd.t==="date") return `<span class="num">${fmtDate(v)}</span>`;
+  if(fd.t==="number") return `<span class="num">${fmtMoney(v)}</span>`;
+  if(fd.badge) return `<span class="badge ${fd.badge(v)}">${esc(v)}</span>`;
+  return esc(v);
 }
 function drawRows(){
   const sc=SCHEMAS[currentEntity], rows=cache[sc.table]||[];
@@ -450,22 +486,24 @@ function drawRows(){
     return Object.values(r).some(x=>String(x??"").toLowerCase().includes(q));
   });
   $("#entHead").innerHTML="<tr>"+sc.cols.map(c=>`<th>${f[c].l}</th>`).join("")+"</tr>";
-  $("#entBody").innerHTML=view.map(r=>"<tr data-id='"+r.id+"'>"+sc.cols.map(c=>{
-    const fd=f[c]; let v=r[c];
-    if(fd.t==="date") v=`<span class="num">${fmtDate(v)}</span>`;
-    else if(fd.t==="number") v=`<span class="num">${fmtMoney(v)}</span>`;
-    else if(fd.badge&&v) v=`<span class="badge ${fd.badge(v)}">${esc(v)}</span>`;
-    else v=esc(v);
-    return `<td>${v??""}</td>`; }).join("")+"</tr>").join("");
+  $("#entBody").innerHTML=view.map(r=>"<tr data-id='"+r.id+"'>"+
+    sc.cols.map(c=>`<td>${fmtVal(f[c],r[c])}</td>`).join("")+"</tr>").join("");
+  /* mobile cards: same data, stacked vertically — no sideways scrolling */
+  const [first,...rest]=sc.card;
+  $("#entCards").innerHTML=view.map(r=>`<div class="card" data-id="${r.id}">
+      <div class="t">${fmtVal(f[first],r[first])||"—"}</div>
+      ${rest.map(c=>{const v=fmtVal(f[c],r[c]);return v?`<div class="kv"><span class="k">${f[c].l}</span><span>${v}</span></div>`:"";}).join("")}
+    </div>`).join("");
   $("#entCount").textContent=`מציג ${view.length} מתוך ${rows.length} רשומות`;
-  $$("#entBody tr").forEach(tr=>tr.addEventListener("click",()=>{
-    const row=rows.find(r=>String(r.id)===tr.dataset.id); openModal(currentEntity,row); }));
+  const open=el=>{ const row=rows.find(r=>String(r.id)===el.dataset.id); openModal(currentEntity,row); };
+  $$("#entBody tr").forEach(tr=>tr.addEventListener("click",()=>open(tr)));
+  $$("#entCards .card").forEach(c=>c.addEventListener("click",()=>open(c)));
 }
 
 /* ===================== Modal (add / edit / delete) ===================== */
-let modalRow=null, modalKey=null;
+let modalRow=null, modalKey=null, modalDirty=false;
 function openModal(key,row){
-  modalKey=key; modalRow=row; const sc=SCHEMAS[key];
+  modalKey=key; modalRow=row; modalDirty=false; const sc=SCHEMAS[key];
   $("#modalTitle").textContent=(row?"עריכת רשומה — ":"רשומה חדשה — ")+sc.title;
   $("#modalDelete").style.display=row?"inline-block":"none";
   $("#modalForm").innerHTML=sc.fields.map(fd=>{
@@ -474,19 +512,36 @@ function openModal(key,row){
     if(fd.t==="select") inp=`<select id="f_${fd.k}"><option value=""></option>${fd.opts.map(o=>`<option ${o===v?"selected":""}>${o}</option>`).join("")}</select>`;
     else if(fd.t==="textarea") inp=`<textarea id="f_${fd.k}" rows="2">${esc(v)}</textarea>`;
     else inp=`<input id="f_${fd.k}" type="${fd.t==="number"?"number":fd.t==="date"?"date":"text"}" value="${esc(fd.t==="date"&&v?String(v).slice(0,10):v)}" ${fd.t==="number"?'step="any" dir="ltr"':""}>`;
-    return `<div class="fld ${fd.wide?"full":""}"><label>${fd.l}</label>${inp}</div>`;
+    return `<div class="fld ${fd.wide?"full":""}" data-k="${fd.k}"><label>${fd.l}${fd.req?' <span class="req-star">*</span>':""}</label>${inp}</div>`;
   }).join("");
   if(key==="shipments"&&row&&sc.computed){
     const c=sc.computed(row);
     $("#modalForm").insertAdjacentHTML("beforeend",
       Object.entries(c).map(([k,v])=>`<div class="fld"><label>${k} (מחושב)</label><input value="${v}" disabled></div>`).join(""));
   }
+  $("#modalForm").addEventListener("input",()=>modalDirty=true,{once:false});
   $("#modalBg").classList.add("open");
 }
-$("#modalCancel").addEventListener("click",()=>$("#modalBg").classList.remove("open"));
-$("#modalBg").addEventListener("click",e=>{ if(e.target.id==="modalBg") $("#modalBg").classList.remove("open"); });
+function closeModal(){
+  if(modalDirty && !confirm("יש שינויים שלא נשמרו — לצאת בלי לשמור?")) return;
+  $("#modalBg").classList.remove("open");
+}
+$("#modalCancel").addEventListener("click",closeModal);
+$("#modalX").addEventListener("click",closeModal);
+/* Note: clicking outside the modal intentionally does NOT close it —
+   prevents accidental data loss and click-through to table rows (QA finding) */
 $("#modalSave").addEventListener("click",async()=>{
   const sc=SCHEMAS[modalKey], rec={};
+  /* validate required fields */
+  $$("#modalForm .fld").forEach(el=>el.classList.remove("missing"));
+  const missing=[];
+  for(const fd of sc.fields){
+    if(fd.req && !$("#f_"+fd.k).value.trim()){
+      missing.push(fd.l);
+      document.querySelector(`#modalForm .fld[data-k="${fd.k}"]`).classList.add("missing");
+    }
+  }
+  if(missing.length){ toast("יש למלא שדות חובה: "+missing.join(", ")); return; }
   for(const fd of sc.fields){
     let v=$("#f_"+fd.k).value;
     if(fd.t==="number") v=exNum(v);
@@ -498,6 +553,7 @@ $("#modalSave").addEventListener("click",async()=>{
   if(modalRow) ({error}=await sb.from(sc.table).update(rec).eq("id",modalRow.id));
   else ({error}=await sb.from(sc.table).insert(rec));
   if(error){ toast("שמירה נכשלה: "+error.message); return; }
+  modalDirty=false;
   $("#modalBg").classList.remove("open");
   toast("הרשומה נשמרה ✓");
   await loadTable(sc.table); drawRows();
