@@ -6,16 +6,17 @@ import { test, expect } from '@playwright/test'
 test('login CARD has a real background (not transparent)', async ({ page }) => {
   await page.goto('/')
   // Find the Card wrapping the title and assert its background isn't transparent.
-  const bg = await page.getByText('SmartImport', { exact: true }).evaluate((el) => {
-    let node = el
-    while (node && node !== document.body) {
-      const c = getComputedStyle(node).backgroundColor
-      if (c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') return c
-      node = node.parentElement
-    }
-    return 'transparent'
-  })
-  expect(bg).not.toBe('transparent')
+  await expect.poll(async () => {
+    return await page.getByText('SmartImport', { exact: true }).evaluate((el) => {
+      let node = el
+      while (node && node !== document.body) {
+        const c = getComputedStyle(node).backgroundColor
+        if (c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') return c
+        node = node.parentElement
+      }
+      return 'transparent'
+    })
+  }, { timeout: 4000 }).not.toBe('transparent')
 })
 
 test('login page is actually VISIBLE (not stuck at opacity 0)', async ({ page }) => {
@@ -27,18 +28,19 @@ test('login page is actually VISIBLE (not stuck at opacity 0)', async ({ page })
   await expect(title).toBeVisible()
   await expect(loginBtn).toBeVisible()
 
-  // ...and critically, the animated wrapper must have finished its fade-in.
-  // Walk up from the button to the positioned wrapper and assert opacity ~1.
-  const opacity = await loginBtn.evaluate((el) => {
-    let node = el
-    while (node && node !== document.body) {
-      const op = parseFloat(getComputedStyle(node).opacity)
-      if (op < 0.99) return op  // found an ancestor that's still transparent
-      node = node.parentElement
-    }
-    return 1
-  })
-  expect(opacity).toBeGreaterThan(0.99)
+  // Wait for the entrance fade-in (0.35s) to finish before measuring — otherwise
+  // we'd catch the card mid-animation. This still fails if it never reaches 1.
+  await expect.poll(async () => {
+    return await loginBtn.evaluate((el) => {
+      let node = el
+      while (node && node !== document.body) {
+        const op = parseFloat(getComputedStyle(node).opacity)
+        if (op < 0.99) return op  // an ancestor is still transparent
+        node = node.parentElement
+      }
+      return 1
+    })
+  }, { timeout: 4000 }).toBeGreaterThan(0.99)
 
   // The login button should be a real, clickable target with size.
   const box = await loginBtn.boundingBox()
@@ -67,12 +69,13 @@ test('no console errors on initial load', async ({ page }) => {
   expect(real, real.join('\n')).toHaveLength(0)
 })
 
-test('page background is the UMI navy, not a blank white screen', async ({ page }) => {
+test('login page shows the UMI navy surface, not a blank white screen', async ({ page }) => {
   await page.goto('/')
-  const bg = await page.evaluate(() => {
-    const root = document.querySelector('.bg-brand-navy') || document.body
-    return getComputedStyle(root).backgroundColor
-  })
+  // The navy is on the login background wrapper (.bg-brand-navy), not the body.
+  // Assert that element exists and is the expected navy color.
+  const navy = page.locator('.bg-brand-navy').first()
+  await expect(navy).toBeVisible()
+  const bg = await navy.evaluate((el) => getComputedStyle(el).backgroundColor)
   // brand navy #0B1F3A → rgb(11, 31, 58)
   expect(bg).toContain('11, 31, 58')
 })
